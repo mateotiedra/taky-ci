@@ -1,0 +1,16 @@
+[Unit]
+Description=Taky CI Pipeline - Linear webhook to PR automation
+After=network.target
+
+[Service]
+Type=simple
+User=daap
+WorkingDirectory=/home/daap/Codes/meky/meky-ci
+ExecStart=/home/daap/.nvm/versions/node/v22.22.1/bin/node dist/webhook/server.js
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+EnvironmentFile=/home/daap/Codes/meky/meky-ci/.env
+
+[Install]
+WantedBy=multi-user.target

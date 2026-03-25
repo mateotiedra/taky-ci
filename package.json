@@ -1,0 +1,15 @@
+{
+  "name": "taky-ci",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/webhook/server.js",
+    "dev": "tsx watch src/webhook/server.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

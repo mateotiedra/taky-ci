@@ -21,6 +21,7 @@ export interface PipelineContext {
   implementOutput?: string;
   reviewSummary?: string;
   testVerdict?: string;
+  nextSteps?: string;
   prUrl?: string;
 }
 
@@ -122,14 +123,23 @@ export async function runPipeline(job: Job): Promise<void> {
 
       // Finalize success — post summary
       if (phase === "finalize" && success) {
-        const summary = [
+        const summaryLines = [
           `✅ Automated PR created: ${ctx.prUrl}`,
           "",
           "**Quality Gate Results:**",
           `- Code Review: ${ctx.reviewSummary ?? "Not run"} (${ctx.reviewIterations} iteration(s))`,
           `- Visual Test: ${ctx.testVerdict ?? "Not run"} (${ctx.testAttempts} attempt(s))`,
-        ].join("\n");
+        ];
 
+        if (ctx.nextSteps) {
+          summaryLines.push(
+            "",
+            "**Next Steps (manual actions required):**",
+            ...ctx.nextSteps.split(",").map((s) => `- ${s.trim()}`)
+          );
+        }
+
+        const summary = summaryLines.join("\n");
         await postLinearComment(ctx.issueId, summary, cwd);
         await updateLinearStatus(ctx.issueId, "In Review", cwd);
         log("info", "Pipeline completed successfully", ctx.issueId);

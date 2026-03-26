@@ -66,8 +66,9 @@ Instructions:
 3. Explore the codebase to understand existing patterns
 4. Implement the changes following all project conventions (see CLAUDE.md)
 5. ${commitInstruction}
-6. Output "PHASE_COMPLETE" on a new line when done
-7. If the issue is too vague to implement, output "PHASE_UNCLEAR: <explanation>"`;
+6. Before signaling completion, output a line starting with "NEXT_STEPS:" followed by a comma-separated list of manual actions a human must take after merging (e.g. "add API key X to env, configure OAuth redirect URL, check feature on mobile"). If none, output "NEXT_STEPS: none"
+7. Output "PHASE_COMPLETE" on a new line when done
+8. If the issue is too vague to implement, output "PHASE_UNCLEAR: <explanation>"`;
 
   log("info", "Starting implementation", issueId);
   const result = await runClaude({
@@ -96,6 +97,14 @@ Instructions:
   if (result.stdout.includes("PHASE_COMPLETE")) {
     log("info", "Implementation complete", issueId);
     ctx.implementOutput = result.stdout;
+
+    // Extract next steps
+    const nextStepsMatch = result.stdout.match(/NEXT_STEPS:\s*(.+)/);
+    if (nextStepsMatch) {
+      const steps = nextStepsMatch[1].trim();
+      ctx.nextSteps = steps.toLowerCase() === "none" ? undefined : steps;
+    }
+
     return true;
   }
 

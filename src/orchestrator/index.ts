@@ -80,9 +80,17 @@ export async function runPipeline(job: Job): Promise<void> {
     await updateLinearStatus(ctx.issueId, "In Progress", cwd);
     await postLinearComment(ctx.issueId, "Pipeline started — implementing automatically.", cwd);
 
+    const PHASE_LABELS: Record<PhaseName, string> = {
+      implement: "🔧 Implement",
+      review: "🔍 Review",
+      test: "🧪 Test",
+      finalize: "🚀 Finalize",
+    };
+
     // Run configured phases
     for (const phase of ctx.project.phases) {
       log("info", `=== Phase: ${phase} ===`, ctx.issueId);
+      await postLinearComment(ctx.issueId, `${PHASE_LABELS[phase]} — starting...`, cwd);
 
       const runner = PHASE_RUNNERS[phase];
       const success = await runner(ctx);
@@ -92,31 +100,34 @@ export async function runPipeline(job: Job): Promise<void> {
           const reason = ctx.implementOutput?.startsWith("UNCLEAR")
             ? ctx.implementOutput
             : "Implementation failed";
-          await postLinearComment(ctx.issueId, `Pipeline stopped: ${reason}`, cwd);
+          await postLinearComment(ctx.issueId, `❌ Pipeline stopped at **implement** phase: ${reason}`, cwd);
           await updateLinearStatus(ctx.issueId, "Todo", cwd);
           return;
         }
 
         if (phase === "finalize") {
-          await postLinearComment(ctx.issueId, "Pipeline completed but PR creation failed. Check logs.", cwd);
+          await postLinearComment(ctx.issueId, "❌ Pipeline failed at **finalize** phase: PR creation failed. Check server logs.", cwd);
           await updateLinearStatus(ctx.issueId, "In Review", cwd);
           return;
         }
 
-        // review/test not fully clean — log warning but continue
+        // review/test not fully clean — warn and continue
         log("warn", `Phase ${phase} not fully clean, proceeding`, ctx.issueId);
+        const warnDetails =
+          phase === "review"
+            ? `Review not fully clean after ${ctx.reviewIterations} iteration(s): ${ctx.reviewSummary ?? "unknown"}`
+            : `Test not fully clean after ${ctx.testAttempts} attempt(s): verdict = ${ctx.testVerdict ?? "unknown"}`;
+        await postLinearComment(ctx.issueId, `⚠️ ${PHASE_LABELS[phase]} — ${warnDetails}. Proceeding anyway.`, cwd);
       }
 
       // Finalize success — post summary
       if (phase === "finalize" && success) {
         const summary = [
-          `Automated PR created: ${ctx.prUrl}`,
+          `✅ Automated PR created: ${ctx.prUrl}`,
           "",
           "**Quality Gate Results:**",
-          `- Code Review: ${ctx.reviewSummary ?? "Not run"}`,
-          `- Visual Test: ${ctx.testVerdict ?? "Not run"}`,
-          `- Review Iterations: ${ctx.reviewIterations}`,
-          `- Test Attempts: ${ctx.testAttempts}`,
+          `- Code Review: ${ctx.reviewSummary ?? "Not run"} (${ctx.reviewIterations} iteration(s))`,
+          `- Visual Test: ${ctx.testVerdict ?? "Not run"} (${ctx.testAttempts} attempt(s))`,
         ].join("\n");
 
         await postLinearComment(ctx.issueId, summary, cwd);
@@ -126,7 +137,7 @@ export async function runPipeline(job: Job): Promise<void> {
     }
   } catch (err) {
     log("error", `Pipeline error: ${err}`, ctx.issueId);
-    await postLinearComment(ctx.issueId, `Pipeline crashed: ${err}`, cwd).catch(() => {});
+    await postLinearComment(ctx.issueId, `❌ Pipeline crashed unexpectedly: \`${err}\``, cwd).catch(() => {});
     await updateLinearStatus(ctx.issueId, "Todo", cwd).catch(() => {});
   } finally {
     markCompleted(ctx.issueId);
